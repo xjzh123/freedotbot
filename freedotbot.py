@@ -4,11 +4,11 @@ import random
 import time
 from multiprocessing import Process, Queue
 import threading
+from tkinter.tix import TEXT
 import websocket
-from pywebio import start_server
-from pywebio.output import *
-from pywebio.input import *
-from pywebio.session import register_thread
+import pywebio as ui
+import pywebio.output as uiout
+import pywebio.input as uiin
 
 
 def chat_json(text):
@@ -23,6 +23,15 @@ class MsgHandler:
         self.chatroom = chatroom
         self.botname = botname
         self.main = main
+        self.logpath = self.main.logpath
+        self.colordict = {
+            '404r': 'ff5722',
+            'r': 'ff5722',
+            '404b': 'c0ffee',
+            'b': 'c0ffee',
+            'wikidot': 'f02727',
+            'vscode': '007acc'
+        }
 
     def set_ws(self, ws):
         '''
@@ -70,6 +79,10 @@ class MsgHandler:
         if not self.cmdtype == None:
             if self.cmdtype == "chat":
                 self.chat()
+            elif self.cmdtype == "info":
+                self.info()
+            elif self.cmdtype == "emote":
+                self.emote()
             elif self.cmdtype == "onlineAdd":
                 self.onlineAdd()
             elif self.cmdtype == "onlineSet":
@@ -78,19 +91,40 @@ class MsgHandler:
                 self.onlineRemove()
             else:
                 pass
+        if not self.color == None:
+            if not self.nick in self.colordict.keys():
+                self.colordict[self.nick] = self.color
+            elif self.colordict[self.nick] != self.color:
+                self.colordict[self.nick] = self.color
 
     def chat(self):
         '''
         当有人说话时调用
         '''
-        self.main.emote("{}: {}".format(self.nick, self.text))
+        self.main.show("{}: {}".format(self.nick, self.text))
+        if self.text[0:1] == '.':
+            self.chatcommand(self.text)
+
+    def info(self):
+        '''
+        当有信息显示（私信）时调用
+        '''
+        self.main.show("*{}".format(self.text))
+    
+    def emote(self):
+        '''
+        当有旁白显示（/me）时调用
+        '''
+        self.main.show("*{}".format(self.text))
 
     def onlineAdd(self):
         '''
         当有人加入时调用
         '''
         self.onlineusers.append(self.nick)
-        self.main.emote("*{} join".format(self.nick))
+        self.sendchat("Hello {}. I am a bot. ".format(self.nick))
+        self.wsendchat("To Chinese user: 可以试试说中文哦。your-channel一般有中国用户，即使有时他们正好都在说英文。\n有一些用户是程序驱动的机器人，比如我。然而，机器人的操作者可能通过机器人发言。")
+        self.main.show("*{} join".format(self.nick))
 
     def onlineSet(self):
         '''
@@ -106,7 +140,65 @@ class MsgHandler:
         当有人离开时调用
         '''
         self.onlineusers.remove(self.nick)
-        self.main.emote("*{} left".format(self.nick))
+        self.main.show("*{} left".format(self.nick))
+    
+    def chatcommand(self,text):
+        '''
+                处理聊天命令
+        '''
+        ccmdtxt = text.replace('.', '', 1)
+        ccmdlist = ccmdtxt.split(' ', 1)
+        ccmd = ccmdlist[0]
+        if len(ccmdlist) > 1:
+            cobj = ccmdlist[1]
+        else:
+            cobj = ''
+        if ccmd == '':  # 防止“.”触发命令
+            pass
+        elif '.' in ccmd:  # 防止“...”触发命令
+            pass
+        elif ccmd == 'help':  # 命令帮助
+            self.wsendchat('''
+## [.] + command name + command obj = command
+
+|command name<other names>|command obj|command effect|
+|----|----|----|
+|color<c>|[the nickname of a user whose nickname has special color]|Gives you a command to change the color of your name. | 
+|history<h>|[a number from 1 to how many messages dotbot can show]|Shows you messages which are sent before you use this command. Useful when you are new to a channel and want to know what has happened. May not work. |
+|help|[no object]|Shows you how to use the commands above. |
+|[more]|[to be developed]|[in the future.]|
+            ''')
+
+        elif ccmd == 'c' or ccmd == 'color':  # 快速获取颜色代码
+            cobj = cobj.lstrip('@').rstrip()
+            if cobj in self.colordict.keys():
+                getcolor = self.colordict[cobj]
+                self.wsendchat("`/color #"+getcolor+'`')
+            else:
+                self.wsendchat("请输入正确的颜色代码。")
+
+        elif ccmd == 'history' or ccmd == 'h':  # 聊天记录查询功能
+            if cobj.isdigit() == True and len(cobj) > 0:
+                cobj = int(cobj)
+                # 如果聊天记录小于1mb
+                if os.path.getsize(self.logpath) < 1024576:
+                    with open(self.logpath, 'r') as chatHistory:
+                        historyList = chatHistory.readlines()
+                        if cobj >= 1 and cobj <= len(historyList):
+                            chstr = ''.join(historyList[-cobj-1:-1])
+                            self.wsendchat('以下是最近的'+str(cobj)+'条消息：\n'+chstr)
+                        else:
+                            self.wsendchat(
+                                '当前仅记录了'+str(len(historyList)) + '条聊天记录。无法查询'+str(cobj)+'条聊天记录。')
+                else:
+                    self.wsendchat('当前记录聊天记录过文件过大。拒绝查询。')
+            else:
+                self.wsendchat('请输入合法的查询条数。')
+        elif ccmd == 'online' or ccmd == 'o':
+            self.wsendchat('Online user: '+','.join(self.onlineuser))
+        else:
+            self.wsendchat(
+                'Unknown dotbot command. Use ".help" to get help for dotbot commands. ')  # 未知命令
 
 
 class BotMain:  # 提供各种功能，接收websocket服务器的信息
@@ -149,13 +241,13 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         '''
         被服务器踢出时调用
         '''
-        self.emote("###closed")
+        self.show("###closed")
 
     def on_error(self, ws, error):
         '''
         发生错误时调用
         '''
-        self.emote("###error: {}".format(error))
+        self.show("###error: {}".format(error))
 
     def on_message(self, ws, message):
         '''
@@ -164,13 +256,13 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         ms_data = json.loads(message)
         self.msghandler.handle(ms_data)
 
-    def emote(self, text):
+    def show(self, text):
         '''
-        显示信息。如果有条件，可以自行更改显示的方式。
+        显示信息。
         '''
         text = str(text)
         self.show_msg_queue.put(text)
-        with open(self.logpath, 'a') as chatHistory:
+        with open(self.logpath, 'a') as chatHistory:#记录日志
             if os.path.getsize(self.logpath) < 1024576:
                 chatHistory.write(text + "\n")
 
@@ -203,18 +295,18 @@ class UIProc(Process):
     def runUI(self):
         self.get_input_t=threading.Thread(target=self.get_input_msg)
         self.read_chat_t=threading.Thread(target=self.get_chat_msg)
-        register_thread(self.get_input_t)#在子线程中使用PyWebIO必须进行这一步
-        register_thread(self.read_chat_t)#https://pywebio.readthedocs.io/zh_CN/latest/guide.html#thread-in-server-mode
+        ui.session.register_thread(self.get_input_t)#在子线程中使用PyWebIO必须进行这一步
+        ui.session.register_thread(self.read_chat_t)#https://pywebio.readthedocs.io/zh_CN/latest/guide.html#thread-in-server-mode
         self.get_input_t.start()
         self.read_chat_t.start()
-        put_scrollable(put_scope('chatscope'), height=600, keep_bottom=True)
+        ui.output.put_scrollable(ui.output.put_scope('chatscope'), height=600, keep_bottom=True)
 
     def get_input_msg(self):
         '''
         将界面输入框里的内容发送到队列
         '''
         while True:
-            msg=input(type=TEXT)
+            msg=ui.input.input(type=TEXT)
             if not msg == "":
                 self.send_msg_queue.put(msg)
     
@@ -224,17 +316,17 @@ class UIProc(Process):
         '''
         while True:
             if not self.show_msg_queue.empty():
-                put_text(self.show_msg_queue.get(), scope='chatscope')#get()函数会自动删除队列的最后一项。
+                ui.output.put_text(self.show_msg_queue.get(), scope='chatscope')#get()函数会自动删除队列的最后一项。
 
     def run(self):
         '''
         定义进程活动：显示界面
         '''
-        start_server(self.runUI, port=8080, debug=True)#PyWebIO支持script模式与server模式，此处为server模式。
+        ui.start_server(self.runUI, port=8080, debug=True)#PyWebIO支持script模式与server模式，此处为server模式。
 
 
 if __name__ == '__main__':#使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html
-    hcroom = 'yc'
+    hcroom = input("输入聊天室名称: ")
     if hcroom == 'yc':
         hcroom = 'your-channel'
     elif hcroom == 'ts':
