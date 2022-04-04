@@ -233,7 +233,7 @@ class UIProc(Process):
         start_server(self.runUI, port=8080, debug=True)#PyWebIO支持script模式与server模式，此处为server模式。
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':#使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html
     hcroom = 'yc'
     if hcroom == 'yc':
         hcroom = 'your-channel'
