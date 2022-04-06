@@ -4,7 +4,7 @@ import random
 import time
 from multiprocessing import Process, Queue
 import threading
-from tkinter.tix import TEXT
+#from tkinter.tix import TEXT
 import websocket
 import pywebio as ui
 import pywebio.output as uiout
@@ -110,7 +110,7 @@ class MsgHandler:
         当有信息显示（私信）时调用
         '''
         self.main.show("*{}".format(self.text))
-    
+
     def emote(self):
         '''
         当有旁白显示（/me）时调用
@@ -123,7 +123,8 @@ class MsgHandler:
         '''
         self.onlineusers.append(self.nick)
         self.sendchat("Hello {}. I am a bot. ".format(self.nick))
-        self.wsendchat("To Chinese user: 可以试试说中文哦。your-channel一般有中国用户，即使有时他们正好都在说英文。\n有一些用户是程序驱动的机器人，比如我。然而，机器人的操作者可能通过机器人发言。")
+        self.wsendchat(
+            "To Chinese user: 可以试试说中文哦。your-channel一般有中国用户，即使有时他们正好都在说英文。\n有一些用户是程序驱动的机器人，比如我。然而，机器人的操作者可能通过机器人发言。")
         self.main.show("*{} join".format(self.nick))
 
     def onlineSet(self):
@@ -132,7 +133,7 @@ class MsgHandler:
         '''
         self.onlineusers = self.nicks
         self.sendchat("/color #ffffff")
-        #self.sendchat(
+        # self.sendchat(
         #    "I am free-dotbot. Maybe one day I can be used to battle foolishbird! ")
 
     def onlineRemove(self):
@@ -141,8 +142,8 @@ class MsgHandler:
         '''
         self.onlineusers.remove(self.nick)
         self.main.show("*{} left".format(self.nick))
-    
-    def chatcommand(self,text):
+
+    def chatcommand(self, text):
         '''
                 处理聊天命令
         '''
@@ -202,35 +203,35 @@ class MsgHandler:
 
 
 class BotMain:  # 提供各种功能，接收websocket服务器的信息
-    def __init__(self, chatroom, botname,show_msg_queue,send_msg_queue,bot_ctrl_queue):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue):
         self.chatroom = chatroom
         self.botname = botname
-        self.show_msg_queue=show_msg_queue
-        self.send_msg_queue=send_msg_queue
-        self.bot_ctrl_queue=bot_ctrl_queue
+        self.show_msg_queue = show_msg_queue
+        self.send_msg_queue = send_msg_queue
+        self.bot_ctrl_queue = bot_ctrl_queue
         self.init_time = time.strftime("%Y-%m-%d %H_%M_%S", time.localtime())
         self.logpath = './log/'+self.chatroom+' '+self.init_time+'.txt'
         with open(self.logpath, 'x') as log:  # 创建日志文件
             pass
         self.msghandler = MsgHandler(chatroom, botname, self)
-    
+
     def send_input_msg(self):
         while True:
             if not self.send_msg_queue.empty():
                 self.msghandler.sendchat(self.send_msg_queue.get())
-    
+
     def exec_bot_ctrl(self):
         while True:
             if not self.bot_ctrl_queue.empty():
-                self.ctrl_cmd=self.send_input_msg.get()
+                self.ctrl_cmd = self.send_input_msg.get()
                 pass
 
     def on_open(self, ws):
         '''
         成功与服务器建立连接时调用
         '''
-        self.send_input_msg_t=threading.Thread(target=self.send_input_msg)
-        self.exec_bot_ctrl_t=threading.Thread(target=self.exec_bot_ctrl)
+        self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
+        self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
         self.send_input_msg_t.start()
         self.exec_bot_ctrl_t.start()
         ws.send(json.dumps({"cmd": "join", "channel": str(
@@ -262,18 +263,19 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         '''
         text = str(text)
         self.show_msg_queue.put(text)
-        with open(self.logpath, 'a') as chatHistory:#记录日志
+        with open(self.logpath, 'a') as chatHistory:  # 记录日志
             if os.path.getsize(self.logpath) < 1024576:
                 chatHistory.write(text + "\n")
 
 
 class BotProc(Process):  # bot运行进程
-    def __init__(self, chatroom, botname,show_msg_queue,send_msg_queue,bot_ctrl_queue):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue):
         Process.__init__(self)  # 初始化进程
-        self.show_msg_queue=show_msg_queue
-        self.send_msg_queue=send_msg_queue
-        self.bot_ctrl_queue=bot_ctrl_queue
-        self.main = BotMain(chatroom=chatroom, botname=botname,show_msg_queue=show_msg_queue,send_msg_queue=send_msg_queue,bot_ctrl_queue=bot_ctrl_queue)  # 设置main模块
+        self.show_msg_queue = show_msg_queue
+        self.send_msg_queue = send_msg_queue
+        self.bot_ctrl_queue = bot_ctrl_queue
+        self.main = BotMain(chatroom=chatroom, botname=botname, show_msg_queue=show_msg_queue,
+                            send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)  # 设置main模块
 
     def run(self):
         '''
@@ -285,47 +287,51 @@ class BotProc(Process):  # bot运行进程
         ws.on_open = self.main.on_open
         ws.run_forever()
 
+
 class UIProc(Process):
-    def __init__(self,show_msg_queue,send_msg_queue,bot_ctrl_queue):
+    def __init__(self, show_msg_queue, send_msg_queue, bot_ctrl_queue):
         Process.__init__(self)
-        self.show_msg_queue=show_msg_queue
-        self.send_msg_queue=send_msg_queue
-        self.bot_ctrl_queue=bot_ctrl_queue
+        self.show_msg_queue = show_msg_queue
+        self.send_msg_queue = send_msg_queue
+        self.bot_ctrl_queue = bot_ctrl_queue
 
     def runUI(self):
-        self.get_input_t=threading.Thread(target=self.get_input_msg)
-        self.read_chat_t=threading.Thread(target=self.get_chat_msg)
-        ui.session.register_thread(self.get_input_t)#在子线程中使用PyWebIO必须进行这一步
-        ui.session.register_thread(self.read_chat_t)#https://pywebio.readthedocs.io/zh_CN/latest/guide.html#thread-in-server-mode
+        self.get_input_t = threading.Thread(target=self.get_input_msg)
+        self.read_chat_t = threading.Thread(target=self.get_chat_msg)
+        ui.session.register_thread(self.get_input_t)  # 在子线程中使用PyWebIO必须进行这一步
+        # https://pywebio.readthedocs.io/zh_CN/latest/guide.html#thread-in-server-mode
+        ui.session.register_thread(self.read_chat_t)
         self.get_input_t.start()
         self.read_chat_t.start()
-        ui.output.put_scrollable(ui.output.put_scope('chatscope'), height=600, keep_bottom=True)
+        ui.output.put_scrollable(ui.output.put_scope(
+            'chatscope'), height=600, keep_bottom=True)
 
     def get_input_msg(self):
         '''
         将界面输入框里的内容发送到队列
         '''
         while True:
-            msg=ui.input.input(type=TEXT)
+            msg = ui.input.input(type='text')
             if not msg == "":
                 self.send_msg_queue.put(msg)
-    
+
     def get_chat_msg(self):
         '''
         获取队列中的消息
         '''
         while True:
             if not self.show_msg_queue.empty():
-                ui.output.put_text(self.show_msg_queue.get(), scope='chatscope')#get()函数会自动删除队列的最后一项。
+                ui.output.put_text(self.show_msg_queue.get(),
+                                   scope='chatscope')  # get()函数会自动删除队列的最后一项。
 
     def run(self):
         '''
         定义进程活动：显示界面
         '''
-        ui.start_server(self.runUI, port=8080, debug=True)#PyWebIO支持script模式与server模式，此处为server模式。
+        ui.start_server(self.runUI, port=8080, debug=True, remote_access=True)  # PyWebIO支持script模式与server模式，此处为server模式。
 
 
-if __name__ == '__main__':#使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html
+if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html
     hcroom = input("输入聊天室名称: ")
     if hcroom == 'yc':
         hcroom = 'your-channel'
@@ -336,8 +342,10 @@ if __name__ == '__main__':#使用多进程时必须使用。见https://www.cnblo
     send_msg_queue = Queue()
     show_msg_queue = Queue()
     bot_ctrl_queue = Queue()
-    botproc = BotProc(chatroom=hcroom, botname="dotbot",show_msg_queue=show_msg_queue,send_msg_queue=send_msg_queue,bot_ctrl_queue=bot_ctrl_queue)
-    uiproc=UIProc(show_msg_queue=show_msg_queue,send_msg_queue=send_msg_queue,bot_ctrl_queue=bot_ctrl_queue)
+    botproc = BotProc(chatroom=hcroom, botname="dotbot", show_msg_queue=show_msg_queue,
+                      send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)
+    uiproc = UIProc(show_msg_queue=show_msg_queue,
+                    send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)
     botproc.start()
     uiproc.start()
     botproc.join()
