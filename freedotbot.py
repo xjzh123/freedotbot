@@ -4,12 +4,9 @@ import random
 import time
 from multiprocessing import Process, Queue
 import threading
-#from tkinter.tix import TEXT
 import websocket
 import pywebio as ui
-import pywebio.output as uiout
-import pywebio.input as uiin
-
+import nest_asyncio #https://www.markhneedham.com/blog/2019/05/10/jupyter-runtimeerror-this-event-loop-is-already-running/
 
 def chat_json(text):
     '''
@@ -122,7 +119,7 @@ class MsgHandler:
         当有人加入时调用
         '''
         self.onlineusers.append(self.nick)
-        self.sendchat("Hello {}. I am a bot. ".format(self.nick))
+        #self.sendchat("Hello {}. I am a bot. ".format(self.nick))
         self.wsendchat(
             "To Chinese user: 可以试试说中文哦。your-channel一般有中国用户，即使有时他们正好都在说英文。\n有一些用户是程序驱动的机器人，比如我。然而，机器人的操作者可能通过机器人发言。")
         self.main.show("*{} join".format(self.nick))
@@ -203,12 +200,13 @@ class MsgHandler:
 
 
 class BotMain:  # 提供各种功能，接收websocket服务器的信息
-    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
         self.chatroom = chatroom
         self.botname = botname
         self.show_msg_queue = show_msg_queue
         self.send_msg_queue = send_msg_queue
         self.bot_ctrl_queue = bot_ctrl_queue
+        self.notebook_mode = notebook_mode
         self.init_time = time.strftime("%Y-%m-%d %H_%M_%S", time.localtime())
         self.logpath = './log/'+self.chatroom+' '+self.init_time+'.txt'
         with open(self.logpath, 'x') as log:  # 创建日志文件
@@ -230,19 +228,24 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         '''
         成功与服务器建立连接时调用
         '''
-        self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
-        self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
-        self.send_input_msg_t.start()
-        self.exec_bot_ctrl_t.start()
+        if self.notebook_mode == False:
+            self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
+            self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
+            self.send_input_msg_t.start()
+            self.exec_bot_ctrl_t.start()
         ws.send(json.dumps({"cmd": "join", "channel": str(
             self.chatroom), "nick": str(self.botname)}))
         self.msghandler.set_ws(ws)
 
-    def on_close(self, ws):
+    def on_close(self, ws, arg1=None, arg2=None):
         '''
         被服务器踢出时调用
         '''
-        self.show("###closed")
+        try:
+            closearg = "arg1:["+str(arg1)+"]arg2:["+str(arg2)+"]"
+        except:
+            closearg = ""
+        self.show("###closed "+str(closearg))
 
     def on_error(self, ws, error):
         '''
@@ -262,20 +265,19 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         显示信息。
         '''
         text = str(text)
-        self.show_msg_queue.put(text)
+        if self.notebook_mode == False:
+            self.show_msg_queue.put(text)
         with open(self.logpath, 'a') as chatHistory:  # 记录日志
             if os.path.getsize(self.logpath) < 1024576:
                 chatHistory.write(text + "\n")
 
 
 class BotProc(Process):  # bot运行进程
-    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
         Process.__init__(self)  # 初始化进程
-        self.show_msg_queue = show_msg_queue
-        self.send_msg_queue = send_msg_queue
-        self.bot_ctrl_queue = bot_ctrl_queue
+        self.notebook_mode = notebook_mode
         self.main = BotMain(chatroom=chatroom, botname=botname, show_msg_queue=show_msg_queue,
-                            send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)  # 设置main模块
+                            send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)  # 设置main模块
 
     def run(self):
         '''
@@ -289,11 +291,12 @@ class BotProc(Process):  # bot运行进程
 
 
 class UIProc(Process):
-    def __init__(self, show_msg_queue, send_msg_queue, bot_ctrl_queue):
+    def __init__(self, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
         Process.__init__(self)
         self.show_msg_queue = show_msg_queue
         self.send_msg_queue = send_msg_queue
         self.bot_ctrl_queue = bot_ctrl_queue
+        self.notebook_mode = notebook_mode
 
     def runUI(self):
         self.get_input_t = threading.Thread(target=self.get_input_msg)
@@ -328,10 +331,15 @@ class UIProc(Process):
         '''
         定义进程活动：显示界面
         '''
-        ui.start_server(self.runUI, port=8080, debug=True, remote_access=True)  # PyWebIO支持script模式与server模式，此处为server模式。
+        if self.notebook_mode == False:
+            ui.start_server(self.runUI, port=8080, debug=True, remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
 
 
-if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html
+if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html\
+    #notebook模式开关。notebook模式下，禁用UI，启用notebook优化
+    notebook_mode = False
+    if notebook_mode == True:
+        nest_asyncio.apply()
     hcroom = input("输入聊天室名称: ")
     if hcroom == 'yc':
         hcroom = 'your-channel'
@@ -343,10 +351,13 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
     show_msg_queue = Queue()
     bot_ctrl_queue = Queue()
     botproc = BotProc(chatroom=hcroom, botname="dotbot", show_msg_queue=show_msg_queue,
-                      send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)
+                      send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
     uiproc = UIProc(show_msg_queue=show_msg_queue,
-                    send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue)
-    botproc.start()
-    uiproc.start()
-    botproc.join()
-    uiproc.join()
+                    send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
+    try: 
+        botproc.start()
+        uiproc.start()
+        botproc.join()
+        uiproc.join()
+    except KeyboardInterrupt:
+        pass
