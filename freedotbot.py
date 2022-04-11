@@ -228,11 +228,10 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         '''
         成功与服务器建立连接时调用
         '''
-        if self.notebook_mode == False:
-            self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
-            self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
-            self.send_input_msg_t.start()
-            self.exec_bot_ctrl_t.start()
+        self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
+        self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
+        self.send_input_msg_t.start()
+        self.exec_bot_ctrl_t.start()
         ws.send(json.dumps({"cmd": "join", "channel": str(
             self.chatroom), "nick": str(self.botname)}))
         self.msghandler.set_ws(ws)
@@ -265,8 +264,7 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         显示信息。
         '''
         text = str(text)
-        if self.notebook_mode == False:
-            self.show_msg_queue.put(text)
+        self.show_msg_queue.put(text)
         with open(self.logpath, 'a') as chatHistory:  # 记录日志
             if os.path.getsize(self.logpath) < 1024576:
                 chatHistory.write(text + "\n")
@@ -331,13 +329,12 @@ class UIProc(Process):
         '''
         定义进程活动：显示界面
         '''
-        if self.notebook_mode == False:
-            ui.start_server(self.runUI, port=8080, debug=True, remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
+        ui.start_server(self.runUI, port=8080, debug=True, remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
 
 
 if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html\
     #notebook模式开关。notebook模式下，禁用UI，启用notebook优化
-    notebook_mode = False
+    notebook_mode = True
     if notebook_mode == True:
         nest_asyncio.apply()
     hcroom = input("输入聊天室名称: ")
@@ -347,6 +344,8 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
         hcroom = 'test'
     elif hcroom.lower() == 'cn':
         hcroom = 'chinese'
+    elif hcroom == '炼狱':
+        hcroom = 'purgatory'
     send_msg_queue = Queue()
     show_msg_queue = Queue()
     bot_ctrl_queue = Queue()
@@ -354,10 +353,12 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
                       send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
     uiproc = UIProc(show_msg_queue=show_msg_queue,
                     send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
-    try: 
-        botproc.start()
-        uiproc.start()
-        botproc.join()
-        uiproc.join()
-    except KeyboardInterrupt:
-        pass
+    while True:
+        try: 
+            botproc.start()
+            uiproc.start()
+            botproc.join()
+            uiproc.join()
+        except Exception:
+            botproc.kill()
+            uiproc.kill()
