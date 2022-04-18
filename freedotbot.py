@@ -349,7 +349,7 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
     send_msg_queue = Queue()
     show_msg_queue = Queue()
     bot_ctrl_queue = Queue()
-    botproc = BotProc(chatroom=hcroom, botname="dotbot", show_msg_queue=show_msg_queue,
+    botproc = BotProc(chatroom=hcroom, botname="dotbot_", show_msg_queue=show_msg_queue,
                       send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
     uiproc = UIProc(show_msg_queue=show_msg_queue,
                     send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
