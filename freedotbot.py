@@ -97,7 +97,7 @@ class MsgHandler:
         self.get_user_info()
 
     def get_user_info(self):
-        if not self.color == None:
+        if not self.color == None and not self.color == False:
             if not self.nick in self.colordict.keys():
                 self.colordict[self.nick] = self.color
             elif self.colordict[self.nick] != self.color:
@@ -222,7 +222,7 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         self.notebook_mode = notebook_mode
         self.init_time = time.strftime("%Y-%m-%d %H_%M_%S", time.localtime())
         self.logpath = './log/{} {}.txt'.format(self.chatroom, self.init_time)
-        with open(self.logpath, 'x') as log:  # 创建日志文件
+        with open(self.logpath, 'w') as log:  # 创建日志文件
             pass
         self.msghandler = MsgHandler(chatroom, botname, self)
 
@@ -351,6 +351,7 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
     notebook_mode = True
     if notebook_mode == True:
         nest_asyncio.apply()
+    print("path: {}".format(os.path.abspath('.')))
     hcroom = input("输入聊天室名称: ")
     if hcroom == 'yc':
         hcroom = 'your-channel'
