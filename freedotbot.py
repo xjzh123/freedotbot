@@ -6,7 +6,8 @@ from multiprocessing import Process, Queue
 import threading
 import websocket
 import pywebio as ui
-import nest_asyncio #https://www.markhneedham.com/blog/2019/05/10/jupyter-runtimeerror-this-event-loop-is-already-running/
+import nest_asyncio  # https://www.markhneedham.com/blog/2019/05/10/jupyter-runtimeerror-this-event-loop-is-already-running/
+
 
 def chat_json(text):
     '''
@@ -26,6 +27,7 @@ class MsgHandler:
             'r': 'ff5722',
             '404b': 'c0ffee',
             'b': 'c0ffee',
+            'g': '99c21d',
             'wikidot': 'f02727',
             'vscode': '007acc'
         }
@@ -42,19 +44,23 @@ class MsgHandler:
         '''
         self.ws.send(chat_json(msg))
 
-    def wsendchat(self, msg):
+    def wsendchat(self, msg, nick=None):
         '''
         用私聊命令发送聊天消息
         '''
-        self.sendchat("/whisper {} {}".format(self.nick, msg))
+        if nick == None:
+            nick = self.nick
+        self.sendchat("/whisper {} {}".format(nick, msg))
 
-    def get_data(self, key):
+    def get_data(self, key, json_data=None):
         '''
         从json数据获取信息，没有这条信息则返回空值
         '''
+        if json_data == None:
+            json_data = self.ms_data
         key = str(key)
-        if key in self.ms_data:
-            result = self.ms_data[key]
+        if key in json_data:
+            result = json_data[key]
         else:
             result = None
         return result
@@ -69,9 +75,9 @@ class MsgHandler:
         self.nick = self.get_data("nick")
         self.text = self.get_data("text")
         self.color = self.get_data("color")
-        self.color = self.get_data("color")
         self.trip = self.get_data("trip")
         self.nicks = self.get_data("nicks")
+        self.users = self.get_data("users")
         # 根据不同消息类型，调用对应方法
         if not self.cmdtype == None:
             if self.cmdtype == "chat":
@@ -88,6 +94,9 @@ class MsgHandler:
                 self.onlineRemove()
             else:
                 pass
+        self.get_user_info()
+
+    def get_user_info(self):
         if not self.color == None:
             if not self.nick in self.colordict.keys():
                 self.colordict[self.nick] = self.color
@@ -121,13 +130,17 @@ class MsgHandler:
         self.onlineusers.append(self.nick)
         #self.sendchat("Hello {}. I am a bot. ".format(self.nick))
         self.wsendchat(
-            "To Chinese user: 可以试试说中文哦。your-channel一般有中国用户，即使有时他们正好都在说英文。\n有一些用户是程序驱动的机器人，比如我。然而，机器人的操作者可能通过机器人发言。")
+            "To Chinese user: 可以试试说中文哦。建议新人点击链接看看[我写的wiki](https://hcwiki.github.io)。\nTo Other users: if it occurs that everybody is speaking Chinese, you can go to ?programming. There most users speak English. ")
         self.main.show("*{} join".format(self.nick))
 
     def onlineSet(self):
         '''
         当返回在线名单时（加入新房间时）调用
         '''
+        for user_data in self.users:
+            self.nick = self.get_data("nick", user_data)
+            self.color = self.get_data("color", user_data)
+            self.get_user_info()
         self.onlineusers = self.nicks
         self.sendchat("/color #ffffff")
         # self.sendchat(
@@ -171,7 +184,7 @@ class MsgHandler:
             cobj = cobj.lstrip('@').rstrip()
             if cobj in self.colordict.keys():
                 getcolor = self.colordict[cobj]
-                self.wsendchat("`/color #"+getcolor+'`')
+                self.wsendchat("`/color #{}`".format(getcolor))
             else:
                 self.wsendchat("请输入正确的颜色代码。")
 
@@ -184,10 +197,10 @@ class MsgHandler:
                         historyList = chatHistory.readlines()
                         if cobj >= 1 and cobj <= len(historyList):
                             chstr = ''.join(historyList[-cobj-1:-1])
-                            self.wsendchat('以下是最近的'+str(cobj)+'条消息：\n'+chstr)
+                            self.wsendchat('以下是最近的{}条消息：\n'.format(str(cobj))+chstr)
                         else:
                             self.wsendchat(
-                                '当前仅记录了'+str(len(historyList)) + '条聊天记录。无法查询'+str(cobj)+'条聊天记录。')
+                                '当前仅记录了{}条聊天记录。无法查询{}条聊天记录。'.format(str(len(historyList)), str(cobj)))
                 else:
                     self.wsendchat('当前记录聊天记录过文件过大。拒绝查询。')
             else:
@@ -208,7 +221,7 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         self.bot_ctrl_queue = bot_ctrl_queue
         self.notebook_mode = notebook_mode
         self.init_time = time.strftime("%Y-%m-%d %H_%M_%S", time.localtime())
-        self.logpath = './log/'+self.chatroom+' '+self.init_time+'.txt'
+        self.logpath = './log/{} {}.txt'.format(self.chatroom, self.init_time)
         with open(self.logpath, 'x') as log:  # 创建日志文件
             pass
         self.msghandler = MsgHandler(chatroom, botname, self)
@@ -229,9 +242,9 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         成功与服务器建立连接时调用
         '''
         self.send_input_msg_t = threading.Thread(target=self.send_input_msg)
-        self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
+        #self.exec_bot_ctrl_t = threading.Thread(target=self.exec_bot_ctrl)
         self.send_input_msg_t.start()
-        self.exec_bot_ctrl_t.start()
+        # self.exec_bot_ctrl_t.start()
         ws.send(json.dumps({"cmd": "join", "channel": str(
             self.chatroom), "nick": str(self.botname)}))
         self.msghandler.set_ws(ws)
@@ -241,7 +254,7 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
         被服务器踢出时调用
         '''
         try:
-            closearg = "arg1:["+str(arg1)+"]arg2:["+str(arg2)+"]"
+            closearg = "arg1:[{}]arg2:[{}]".format(str(arg1), str(arg2))
         except:
             closearg = ""
         self.show("###closed "+str(closearg))
@@ -329,11 +342,12 @@ class UIProc(Process):
         '''
         定义进程活动：显示界面
         '''
-        ui.start_server(self.runUI, port=8080, debug=True, remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
+        ui.start_server(self.runUI, port=8080, debug=True,
+                        remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
 
 
 if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html\
-    #notebook模式开关。notebook模式下，禁用UI，启用notebook优化
+    # notebook模式开关。notebook模式下，禁用UI，启用notebook优化
     notebook_mode = True
     if notebook_mode == True:
         nest_asyncio.apply()
@@ -348,13 +362,13 @@ if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cn
         hcroom = 'purgatory'
     send_msg_queue = Queue()
     show_msg_queue = Queue()
-    bot_ctrl_queue = Queue()
+    #bot_ctrl_queue = Queue()
     botproc = BotProc(chatroom=hcroom, botname="dotbot_", show_msg_queue=show_msg_queue,
-                      send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
+                      send_msg_queue=send_msg_queue, bot_ctrl_queue=None, notebook_mode=notebook_mode)
     uiproc = UIProc(show_msg_queue=show_msg_queue,
-                    send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)
+                    send_msg_queue=send_msg_queue, bot_ctrl_queue=None, notebook_mode=notebook_mode)
     while True:
-        try: 
+        try:
             botproc.start()
             uiproc.start()
             botproc.join()
