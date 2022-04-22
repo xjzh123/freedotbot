@@ -1,0 +1,3 @@
+pywebio
+websocket-client
+nest_asyncio
