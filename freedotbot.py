@@ -213,13 +213,13 @@ class MsgHandler:
 
 
 class BotMain:  # 提供各种功能，接收websocket服务器的信息
-    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, cloud_mode):
         self.chatroom = chatroom
         self.botname = botname
         self.show_msg_queue = show_msg_queue
         self.send_msg_queue = send_msg_queue
         self.bot_ctrl_queue = bot_ctrl_queue
-        self.notebook_mode = notebook_mode
+        self.cloud_mode = cloud_mode
         self.init_time = time.strftime("%Y-%m-%d %H_%M_%S", time.localtime())
         self.logpath = './log/{} {}.txt'.format(self.chatroom, self.init_time)
         with open(self.logpath, 'w') as log:  # 创建日志文件
@@ -284,11 +284,11 @@ class BotMain:  # 提供各种功能，接收websocket服务器的信息
 
 
 class BotProc(Process):  # bot运行进程
-    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
+    def __init__(self, chatroom, botname, show_msg_queue, send_msg_queue, bot_ctrl_queue, cloud_mode):
         Process.__init__(self)  # 初始化进程
-        self.notebook_mode = notebook_mode
+        self.cloud_mode = cloud_mode
         self.main = BotMain(chatroom=chatroom, botname=botname, show_msg_queue=show_msg_queue,
-                            send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, notebook_mode=notebook_mode)  # 设置main模块
+                            send_msg_queue=send_msg_queue, bot_ctrl_queue=bot_ctrl_queue, cloud_mode=cloud_mode)  # 设置main模块
 
     def run(self):
         '''
@@ -302,12 +302,12 @@ class BotProc(Process):  # bot运行进程
 
 
 class UIProc(Process):
-    def __init__(self, show_msg_queue, send_msg_queue, bot_ctrl_queue, notebook_mode):
+    def __init__(self, show_msg_queue, send_msg_queue, bot_ctrl_queue, cloud_mode):
         Process.__init__(self)
         self.show_msg_queue = show_msg_queue
         self.send_msg_queue = send_msg_queue
         self.bot_ctrl_queue = bot_ctrl_queue
-        self.notebook_mode = notebook_mode
+        self.cloud_mode = cloud_mode
 
     def runUI(self):
         self.get_input_t = threading.Thread(target=self.get_input_msg)
@@ -348,26 +348,25 @@ class UIProc(Process):
 
 if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html\
     # notebook模式开关。notebook模式下，禁用UI，启用notebook优化
-    notebook_mode = True
-    if notebook_mode == True:
-        nest_asyncio.apply()
+    nest_asyncio.apply()
     print("path: {}".format(os.path.abspath('.')))
-    hcroom = input("输入聊天室名称: ")
-    if hcroom == 'yc':
-        hcroom = 'your-channel'
-    elif hcroom == 'ts':
-        hcroom = 'test'
-    elif hcroom.lower() == 'cn':
-        hcroom = 'chinese'
-    elif hcroom == '炼狱':
-        hcroom = 'purgatory'
+    with open("cloud_config.json") as config_json:
+        cloud_config = json.loads(config_json.read())
+        cloud_mode = cloud_config["is_heroku"]
+        if cloud_mode == True:
+            hcroom = cloud_config["room"]
+    if cloud_mode == False:
+        roomdict = {"yc":"your-channel","ts":"test","cn":"chinese","purg":"purgatory"}
+        hcroom = input("输入聊天室名称: ")
+        if hcroom in roomdict:
+            hcroom = roomdict[hcroom]
     send_msg_queue = Queue()
     show_msg_queue = Queue()
     #bot_ctrl_queue = Queue()
     botproc = BotProc(chatroom=hcroom, botname="dotbot", show_msg_queue=show_msg_queue,
-                      send_msg_queue=send_msg_queue, bot_ctrl_queue=None, notebook_mode=notebook_mode)
+                      send_msg_queue=send_msg_queue, bot_ctrl_queue=None, cloud_mode=cloud_mode)
     uiproc = UIProc(show_msg_queue=show_msg_queue,
-                    send_msg_queue=send_msg_queue, bot_ctrl_queue=None, notebook_mode=notebook_mode)
+                    send_msg_queue=send_msg_queue, bot_ctrl_queue=None, cloud_mode=cloud_mode)
     while True:
         try:
             botproc.start()
