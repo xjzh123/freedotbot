@@ -6,6 +6,7 @@ from multiprocessing import Process, Queue
 import threading
 import websocket
 import pywebio as ui
+import simpchess
 import nest_asyncio  # https://www.markhneedham.com/blog/2019/05/10/jupyter-runtimeerror-this-event-loop-is-already-running/
 
 
@@ -22,6 +23,7 @@ class MsgHandler:
         self.botname = botname
         self.main = main
         self.logpath = self.main.logpath
+        self.is_playing = False
         self.colordict = {
             '404r': 'ff5722',
             'r': 'ff5722',
@@ -207,6 +209,44 @@ class MsgHandler:
                 self.wsendchat('请输入合法的查询条数。')
         elif ccmd == 'online' or ccmd == 'o':
             self.wsendchat('Online user: '+','.join(self.onlineuser))
+        elif ccmd == 'chess':
+            if self.is_playing == False:
+                self.p1 = self.nick
+                self.is_playing = -1
+                self.player = 1
+                simpchess.set_callback(self)
+                simpchess.generate_pieces()
+                simpchess.main.getMap()
+                self.sendchat('发送“.2player”加入游戏')
+            else:
+                self.sendchat('当前游戏已经在进行')
+        elif ccmd == '2player':
+            if self.is_playing == -1:
+                self.p2 = self.nick
+                self.sendchat('成功加入游戏')
+                self.is_playing = 1
+            else:
+                self.sendchat('当前没有开始游戏或游戏已经在进行')
+        elif ccmd == 'p':
+            if self.is_playing == 1:
+                if self.player == 1:
+                    if self.nick == self.p1:
+                        move_success = simpchess.consolePlay(cobj,1)
+                        if move_success:
+                            self.player = -1
+                else:
+                    if self.nick == self.p2:
+                        move_success = simpchess.consolePlay(cobj,-1)
+                        if move_success:
+                            self.player = 1
+        elif ccmd == 'end_game':
+            self.is_playing = False
+            self.sendchat('已结束游戏')
+        elif ccmd == 'chess_board':
+            if self.is_playing == 1:
+                simpchess.main.getMap()
+        elif ccmd == 'getobj':
+            self.sendchat('obj:[{}]'.format(cobj))
         else:
             self.wsendchat(
                 'Unknown dotbot command. Use ".help" to get help for dotbot commands. ')  # 未知命令
