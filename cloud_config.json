@@ -1,4 +1,4 @@
 {
-    "is_heroku":true,
+    "is_heroku":false,
     "room":"your-channel"
 }
