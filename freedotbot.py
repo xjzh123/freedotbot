@@ -112,6 +112,10 @@ class MsgHandler:
         self.main.show("{}: {}".format(self.nick, self.text))
         if self.text[0:1] == '.':
             self.chatcommand(self.text)
+        if self.trip == 'p4AXF2' or self.trip == 'xmv2c1':
+            # against a spammer with this trip. ignore or delete this function if it is no longer necessary. 
+            self.sendchat('@{} 狗叫呢？'.format(self.nick))
+            self.wsendchat('''# 狗再叫\n$$\Huge\color{red}{狗再叫}$$\n>>>>>>>>>>>>>>>>>>>># ==再来给你爹叫一个啊狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗儿子狗狗儿子==''')
 
     def info(self):
         '''
@@ -132,7 +136,7 @@ class MsgHandler:
         self.onlineusers.append(self.nick)
         #self.sendchat("Hello {}. I am a bot. ".format(self.nick))
         self.wsendchat(
-            "To Chinese user: 可以试试说中文哦。建议新人点击链接看看[我写的wiki](https://hcwiki.github.io)。\nTo Other users: if it occurs that everybody is speaking Chinese, you can go to ?programming. There most users speak English. ")
+            "To Chinese users: 在your-channel，可以试试说中文哦。建议新人点击链接看看[我写的wiki](https://hcwiki.github.io)。\nTo Other users: if it occurs that everybody is speaking Chinese, you can go to ?programming. There most users speak English. Or, staying here is welcome too! ")
         self.main.show("*{} join".format(self.nick))
 
     def onlineSet(self):
@@ -171,16 +175,16 @@ class MsgHandler:
         elif '.' in ccmd:  # 防止“...”触发命令
             pass
         elif ccmd == 'help':  # 命令帮助
-            self.wsendchat('''
-## [.] + command name + command obj = command
-
-|command name<other names>|command obj|command effect|
-|----|----|----|
-|color<c>|[the nickname of a user whose nickname has special color]|Gives you a command to change the color of your name. | 
-|history<h>|[a number from 1 to how many messages dotbot can show]|Shows you messages which are sent before you use this command. Useful when you are new to a channel and want to know what has happened. May not work. |
-|help|[no object]|Shows you how to use the commands above. |
-|[more]|[to be developed]|[in the future.]|
-            ''')
+            help_text = '\n'.join([
+                '## [.] + command name + command obj = command',
+                '|command name<other names>|command obj|command effect|',
+                '|----|----|----|',
+                '|color<c>|[the nickname of a user whose nickname has special color]|Gives you a command to change the color of your name. |',
+                '|history<h>|[a number from 1 to how many messages dotbot can show]|Shows you messages which are sent before you use this command. |',
+                '|help|[no object]|Shows you how to use the commands above. |',
+                '|[more]|[to be developed]|[in the future.]|'
+            ])
+            self.wsendchat(help_text)
 
         elif ccmd == 'c' or ccmd == 'color':  # 快速获取颜色代码
             cobj = cobj.lstrip('@').rstrip()
@@ -188,7 +192,7 @@ class MsgHandler:
                 getcolor = self.colordict[cobj]
                 self.wsendchat("`/color #{}`".format(getcolor))
             else:
-                self.wsendchat("请输入正确的颜色代码。")
+                self.wsendchat("Please give correct parameter.")
 
         elif ccmd == 'history' or ccmd == 'h':  # 聊天记录查询功能
             if cobj.isdigit() == True and len(cobj) > 0:
@@ -199,14 +203,14 @@ class MsgHandler:
                         historyList = chatHistory.readlines()
                         if cobj >= 1 and cobj <= len(historyList):
                             chstr = ''.join(historyList[-cobj-1:-1])
-                            self.wsendchat('以下是最近的{}条消息：\n'.format(str(cobj))+chstr)
+                            self.wsendchat("Showing {} messages: \n".format(str(cobj))+chstr)
                         else:
                             self.wsendchat(
-                                '当前仅记录了{}条聊天记录。无法查询{}条聊天记录。'.format(str(len(historyList)), str(cobj)))
+                                "Only {} messages logged. Can't show {}. ".format(str(len(historyList)), str(cobj)))
                 else:
-                    self.wsendchat('当前记录聊天记录过文件过大。拒绝查询。')
+                    self.wsendchat("Log file is too big! Refuse to read or write log. ")
             else:
-                self.wsendchat('请输入合法的查询条数。')
+                self.wsendchat("Please give leagal parameter. ")
         elif ccmd == 'online' or ccmd == 'o':
             self.wsendchat('Online user: '+','.join(self.onlineuser))
         elif ccmd == 'chess':
@@ -382,6 +386,7 @@ class UIProc(Process):
         '''
         定义进程活动：显示界面
         '''
+        print('Starting UI...')
         ui.start_server(self.runUI, port=8080, debug=True,
                         remote_access=False)  # PyWebIO支持script模式与server模式，此处为server模式。
 
@@ -389,15 +394,16 @@ class UIProc(Process):
 if __name__ == '__main__':  # 使用多进程时必须使用。见https://www.cnblogs.com/wFrancow/p/8511711.html\
     # notebook模式开关。notebook模式下，禁用UI，启用notebook优化
     nest_asyncio.apply()
-    print("path: {}".format(os.path.abspath('.')))
+    print("----DotBot Running----")
+    print("Current path: {}".format(os.path.abspath('.')))
     with open("cloud_config.json") as config_json:
         cloud_config = json.loads(config_json.read())
         cloud_mode = cloud_config["is_heroku"]
-        if cloud_mode == True:
-            hcroom = cloud_config["room"]
-    if cloud_mode == False:
+    if cloud_mode == True:
+        hcroom = cloud_config["room"]
+    else:
         roomdict = {"yc":"your-channel","ts":"test","cn":"chinese","purg":"purgatory"}
-        hcroom = input("输入聊天室名称: ")
+        hcroom = input("Please input room name (or abbreviation) here: ")
         if hcroom in roomdict:
             hcroom = roomdict[hcroom]
     send_msg_queue = Queue()
