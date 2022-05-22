@@ -181,7 +181,12 @@ class MsgHandler:
                 '|----|----|----|',
                 '|color<c>|[the nickname of a user whose nickname has special color]|Gives you a command to change the color of your name. |',
                 '|history<h>|[a number from 1 to how many messages dotbot can show]|Shows you messages which are sent before you use this command. |',
-                '|help|[no object]|Shows you how to use the commands above. |',
+                '|r|[1 or 2 int for the minimal and maximal result]|Random int. |',
+                '|chess|[no object]|Play Chinese Chess in chat room!|',
+                '|2player|[no object]|Join the Chess game!|',
+                '|p|[x]&[y]of piece [x]&[y] of destination|Move your piece on the Chess board!|',
+                '|end_game|[no object]|End the game!|',
+                '|help|[no object]|Shows this doc. |',
                 '|[more]|[to be developed]|[in the future.]|'
             ])
             self.wsendchat(help_text)
@@ -249,6 +254,19 @@ class MsgHandler:
         elif ccmd == 'chess_board':
             if self.is_playing == 1:
                 simpchess.main.getMap()
+
+        elif ccmd == 'r':
+            if cobj == '':
+                self.sendchat(random.randint(0,1024))
+            else:
+                cobj_list = cobj.split()
+                if len(cobj_list) == 1 and cobj.isdigit():
+                    cobj = int(cobj)
+                    self.sendchat(random.randint(min(0,cobj),max(0,cobj)))
+                elif len(cobj_list) == 2 and cobj_list[0].isdigit() and cobj_list[1].isdigit():
+                    int1 = int(cobj_list[0])
+                    int2 = int(cobj_list[1])
+                    self.sendchat(random.randint(min(int1,int2),max(int1,int2)))
         elif ccmd == 'getobj':
             self.sendchat('obj:[{}]'.format(cobj))
         else:
